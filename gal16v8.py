@@ -19,11 +19,13 @@ import macrocell
 
 class Gal16v8:
 
+    # according to the ATMEL Datasheet for ATF16V8B, ATF16V8BQ*, and ATF16V8BQL
     IO_COUNT = 18
     MACROCELL_COUNT = 8
 
-    # Registered outputs have eight product terms per output.
-    # I/O's have seven product terms per output + /OE
+    # Registered outputs always have eight product terms per output.
+    # I/O's have seven product terms per output when local /OE is used, otherwise also eight.
+    # The number will be dynamically adapted according to the config bits.
     MACROCELL_OR_TERMS = [
         8, 8, 8, 8, 8, 8, 8, 8
     ]
@@ -31,8 +33,8 @@ class Gal16v8:
         # Pin name index    Name prefix
         (1,                 ''),
         (1,                 '!'),
-        (0,                 ''),  # only in complex mode
-        (0,                 '!'), # only in complex mode
+        (0,                 ''),  # only in simple and complex mode, in registered mode this the global CLK
+        (0,                 '!'), # only in simple and complex mode
         (2,                 ''),
         (2,                 '!'),
         (16,                ''),
@@ -59,42 +61,8 @@ class Gal16v8:
         (11,                '!'),
         (8,                 ''),
         (8,                 '!'),
-        (9,                 ''),
-        (9,                 '!'),
-
-#        (0,                 ''),
-#        (0,                 '!'),
-#        (15,                ''),
-#        (15,                '!'),
-#        (1,                 ''),
-#        (1,                 '!'),
-#        (14,                ''),
-#        (14,                '!'),
-#        (2,                 ''),
-#        (2,                 '!'),
-#        (13,                ''),
-#        (13,                '!'),
-#        (3,                 ''),
-#        (3,                 '!'),
-#        (12,                ''),
-#        (12,                '!'),
-#        (4,                 ''),
-#        (4,                 '!'),
-#        (11,                ''),
-#        (11,                '!'),
-#        (5,                 ''),
-#        (5,                 '!'),
-#        (10,                ''),
-#        (10,                '!'),
-#        (6,                 ''),
-#        (6,                 '!'),
-#        (9,                 ''),
-#        (9,                 '!'),
-#        (7,                 ''),
-#        (7,                 '!'),
-#        (8,                 ''),
-#        (8,                 '!'),
-
+        (9,                 ''),  # only in simple and complex mode, in registered mode this is the global /OE
+        (9,                 '!'), # only in simple and complex mode
     ]
 
     # simple     mode: SYN=1, AC-0=0, 8 product terms, no /OE
@@ -107,7 +75,6 @@ class Gal16v8:
     fuse_xor = 2048 # XOR fuses  = 2048..2055 for pin 19..11  '0' means active-low-output, '1' means active-high-output
     fuse_ac1 = 2120 # AC-1 fuses = 2120..2127 for pin 19..11  '0' means D-FlipFlop, '1' means combinatorical
     fuse_ues = 2056 # UES: fuse  = 2056..2119 for byte 7..0, MSB first
-    pin_count = 18
 
     #----------------------------------------------------------------
     # Private
@@ -128,7 +95,8 @@ class Gal16v8:
           self.device_name = 'g16v8ms'
         else:
           # not allowed, let compiler decide
-          self.mode = 'auto'
+          # TODO: throw error
+          self.mode = 'complex'
           self.device_name = 'g16v8a'
 
         #self.macrocells.append(macrocell.Macrocell('AR',1))  # not supported by GAL16V8
@@ -136,11 +104,17 @@ class Gal16v8:
         for macrocell_index in range(self.MACROCELL_COUNT):
 
             # Assume simple name
-            pin_name = self.pin_names[(self.pin_count - 1) - macrocell_index]
+            pin_name = self.pin_names[(self.IO_COUNT - 1) - macrocell_index]
 
             # Determine the macrocell output mode
             pin_prefix = '!'  if fuse_data[macrocell_index + self.fuse_xor] == '0' else ''
-            pin_suffix = '.d' if fuse_data[macrocell_index + self.fuse_ac1] == '0' else ''
+
+            pin_suffix = ''
+            if fuse_data[macrocell_index + self.fuse_ac1] == '0':
+              pin_suffix = '.d'
+              if self.mode != 'registered':
+                # TODO: throw error, combination not allowed
+                pass
 
             termcnt = self.MACROCELL_OR_TERMS[macrocell_index]
             local_oe = False
