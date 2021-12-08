@@ -54,7 +54,7 @@ class Cupl:
         for pin_name in pld.pin_names:
             print('Pin ' + str(pin_number) + ' = ' + pin_name + ';')
             pin_number = pin_number + 1
-            if pin_number == 12:
+            if pin_number == (pld.IO_COUNT + 2) / 2 :
                 pin_number = pin_number + 1
         print('')
 
